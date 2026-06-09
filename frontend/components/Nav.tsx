@@ -141,7 +141,7 @@ export function Nav() {
               }}
               className="hover:bg-[var(--beacon-green-pale)]"
             >
-              Connect wallet
+              Sign in
             </button>
           )}
         </div>
@@ -216,7 +216,7 @@ export function Nav() {
                   cursor: "pointer",
                 }}
               >
-                Connect wallet
+                Sign in
               </button>
             )}
           </div>
