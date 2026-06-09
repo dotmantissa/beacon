@@ -13,10 +13,10 @@ export function PrivyProviderWrapper({ children }: { children: React.ReactNode }
           accentColor: "#37ab2f",
           logo: "/beacon-logo.svg",
         },
-        loginMethods: ["email", "wallet", "google"],
+        loginMethods: ["email", "wallet"],
         embeddedWallets: {
           ethereum: {
-            createOnLogin: "users-without-wallets",
+            createOnLogin: "all-users",
           },
           showWalletUIs: false,
         },
