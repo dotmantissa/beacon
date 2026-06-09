@@ -244,7 +244,7 @@ export async function submitIncident(
       params.location_lng,
       params.location_label,
       params.neighbourhood_id,
-      JSON.stringify(params.evidence_urls),
+      JSON.stringify(params.evidence_urls.filter(u => !u.startsWith("data:"))),
       params.severity,
     ],
     value: BigInt(0),
