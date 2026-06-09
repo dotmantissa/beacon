@@ -1,0 +1,25 @@
+{
+  "name": "beacon",
+  "version": "1.0.0",
+  "description": "Something happened on your street.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dotmantissa/beacon.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/rouevalar/beacon/issues"
+  },
+  "homepage": "https://github.com/rouevalar/beacon#readme",
+  "dependencies": {
+    "ethers": "^6.16.0",
+    "genlayer-js": "^1.1.8"
+  }
+}

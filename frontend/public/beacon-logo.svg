@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Signal/beacon tower base -->
+  <rect x="30" y="38" width="4" height="16" rx="2" fill="#37ab2f"/>
+  <rect x="24" y="52" width="16" height="4" rx="2" fill="#37ab2f"/>
+
+  <!-- Beacon light core -->
+  <circle cx="32" cy="32" r="6" fill="#37ab2f"/>
+  <circle cx="32" cy="32" r="3" fill="#ffffff"/>
+
+  <!-- Signal rings emanating outward -->
+  <path d="M20 32 C20 25.4 25.4 20 32 20" stroke="#37ab2f" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+  <path d="M44 32 C44 25.4 38.6 20 32 20" stroke="#37ab2f" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+
+  <path d="M14 32 C14 21.5 21.5 14 32 14" stroke="#37ab2f" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.7"/>
+  <path d="M50 32 C50 21.5 42.5 14 32 14" stroke="#37ab2f" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.7"/>
+
+  <path d="M8 32 C8 17.6 17.6 8 32 8" stroke="#37ab2f" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.4"/>
+  <path d="M56 32 C56 17.6 46.4 8 32 8" stroke="#37ab2f" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.4"/>
+
+  <!-- Location pin dot indicator -->
+  <circle cx="32" cy="32" r="2" fill="#000000"/>
+</svg>
