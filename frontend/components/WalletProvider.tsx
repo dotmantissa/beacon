@@ -21,6 +21,7 @@ type WalletState = {
   chainId: number | null;
   error: string;
   walletProvider: EthereumProvider;
+  isEmbedded: boolean;
   connect: () => void;
   disconnect: () => Promise<void>;
   clearError: () => void;
@@ -29,7 +30,7 @@ type WalletState = {
 const WalletContext = createContext<WalletState | null>(null);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  const { ready, authenticated, login, logout } = usePrivy();
+  const { ready, authenticated, login, logout, user } = usePrivy();
   const { wallets } = useWallets();
 
   const [walletProvider, setWalletProvider] = useState<EthereumProvider>(null);
@@ -50,8 +51,50 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setError("");
   }, [logout]);
 
+  // Determine whether the current session is an email/social user (embedded wallet)
+  // or an externally connected wallet user. These must never share the same address.
+  const linkedAccounts = user?.linkedAccounts ?? [];
+  const hasEmailAccount = linkedAccounts.some((a) => a.type === "email");
+  const hasExternalWallet = linkedAccounts.some(
+    (a) => a.type === "wallet" && !("walletClientType" in a && (a as { walletClientType?: string }).walletClientType === "privy")
+  );
+
+  // For email users: pick only the Privy-managed embedded wallet.
+  // For wallet users: pick only external (non-Privy) wallets.
+  // This prevents an email login from ever seeing or using a previously linked MetaMask address.
+  const activeWallet = (() => {
+    if (!authenticated || wallets.length === 0) return null;
+    if (hasEmailAccount && !hasExternalWallet) {
+      // Pure email user — must use embedded wallet
+      return (
+        wallets.find(
+          (w) => w.walletClientType === "privy" || w.walletClientType === "privy-v2"
+        ) ?? null
+      );
+    }
+    if (hasExternalWallet && !hasEmailAccount) {
+      // Pure wallet user — use external wallet only
+      return (
+        wallets.find(
+          (w) => w.walletClientType !== "privy" && w.walletClientType !== "privy-v2"
+        ) ?? wallets[0]
+      );
+    }
+    // Mixed account (shouldn't happen with our login config, but handle gracefully):
+    // prefer embedded for safety so email identity is always used
+    return (
+      wallets.find(
+        (w) => w.walletClientType === "privy" || w.walletClientType === "privy-v2"
+      ) ?? wallets[0]
+    );
+  })();
+
+  const isEmbedded =
+    activeWallet?.walletClientType === "privy" ||
+    activeWallet?.walletClientType === "privy-v2";
+
   useEffect(() => {
-    if (!authenticated || wallets.length === 0) {
+    if (!authenticated || !activeWallet) {
       setWalletProvider(null);
       setWrongNetwork(false);
       return;
@@ -60,16 +103,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
 
     async function init() {
-      // Prefer the Privy-managed embedded wallet (email/social users) over any
-      // linked external wallet, so email users always transact from their own key.
-      const wallet =
-        wallets.find((w) => w.walletClientType === "privy" || w.walletClientType === "privy-v2") ??
-        wallets[0];
-      const chainNum = parseInt((wallet.chainId ?? "eip155:0").split(":").pop() ?? "0", 10);
+      if (!activeWallet) return;
+      const chainNum = parseInt(
+        (activeWallet.chainId ?? "eip155:0").split(":").pop() ?? "0",
+        10
+      );
 
       if (chainNum !== CHAIN_ID) {
         try {
-          await wallet.switchChain(CHAIN_ID);
+          await activeWallet.switchChain(CHAIN_ID);
         } catch {
           if (!cancelled) setWrongNetwork(true);
           return;
@@ -80,7 +122,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setWrongNetwork(false);
 
       try {
-        const p = await wallet.getEthereumProvider();
+        const p = await activeWallet.getEthereumProvider();
         if (!cancelled) setWalletProvider(p);
       } catch {
         if (!cancelled) setError("Failed to get wallet provider.");
@@ -88,28 +130,30 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
 
     init();
-    return () => { cancelled = true; };
-  }, [authenticated, wallets]);
+    return () => {
+      cancelled = true;
+    };
+  }, [authenticated, activeWallet]);
 
-  const primaryWallet =
-    wallets.find((w) => w.walletClientType === "privy" || w.walletClientType === "privy-v2") ??
-    wallets[0] ??
-    null;
-  const address = primaryWallet?.address ?? null;
-  const chainNum = primaryWallet
-    ? parseInt((primaryWallet.chainId ?? "eip155:0").split(":").pop() ?? "0", 10)
+  const address = activeWallet?.address ?? null;
+  const chainNum = activeWallet
+    ? parseInt(
+        (activeWallet.chainId ?? "eip155:0").split(":").pop() ?? "0",
+        10
+      )
     : null;
 
   return (
     <WalletContext.Provider
       value={{
         address,
-        isConnected: authenticated && !!primaryWallet && !wrongNetwork,
+        isConnected: authenticated && !!activeWallet && !wrongNetwork,
         isInitializing: !ready,
         wrongNetwork,
         chainId: chainNum,
         error,
         walletProvider,
+        isEmbedded,
         connect,
         disconnect,
         clearError,
