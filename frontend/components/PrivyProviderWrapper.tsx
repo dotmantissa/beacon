@@ -14,6 +14,12 @@ export function PrivyProviderWrapper({ children }: { children: React.ReactNode }
           logo: "/beacon-logo.svg",
         },
         loginMethods: ["email", "wallet", "google"],
+        embeddedWallets: {
+          ethereum: {
+            createOnLogin: "users-without-wallets",
+          },
+          showWalletUIs: false,
+        },
         defaultChain: {
           id: CHAIN_ID,
           name: "GenLayer Studio",
