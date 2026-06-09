@@ -60,7 +60,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
 
     async function init() {
-      const wallet = wallets[0];
+      // Prefer the Privy-managed embedded wallet (email/social users) over any
+      // linked external wallet, so email users always transact from their own key.
+      const wallet =
+        wallets.find((w) => w.walletClientType === "privy" || w.walletClientType === "privy-v2") ??
+        wallets[0];
       const chainNum = parseInt((wallet.chainId ?? "eip155:0").split(":").pop() ?? "0", 10);
 
       if (chainNum !== CHAIN_ID) {
@@ -87,7 +91,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     return () => { cancelled = true; };
   }, [authenticated, wallets]);
 
-  const primaryWallet = wallets[0] ?? null;
+  const primaryWallet =
+    wallets.find((w) => w.walletClientType === "privy" || w.walletClientType === "privy-v2") ??
+    wallets[0] ??
+    null;
   const address = primaryWallet?.address ?? null;
   const chainNum = primaryWallet
     ? parseInt((primaryWallet.chainId ?? "eip155:0").split(":").pop() ?? "0", 10)
