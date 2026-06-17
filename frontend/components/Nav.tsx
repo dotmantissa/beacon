@@ -4,8 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { MapPin, Shield, Plus, User, Menu, X, AlertTriangle } from "lucide-react";
+import { MapPin, Shield, Plus, User, Menu, X, AlertTriangle, Sun, Moon } from "lucide-react";
 import { useWallet } from "@/components/WalletProvider";
+import { useTheme } from "@/components/ThemeProvider";
 
 const NAV_LINKS = [
   { href: "/", label: "Feed", icon: Shield },
@@ -20,12 +21,13 @@ function shortAddr(addr: string) {
 
 export function Nav() {
   const { address, isConnected, connect, disconnect } = useWallet();
+  const { theme, toggle } = useTheme();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
     <nav
-      style={{ borderBottom: "1px solid var(--border)", background: "rgba(255,255,255,0.92)", backdropFilter: "blur(12px)" }}
+      style={{ borderBottom: "1px solid var(--border)", background: "var(--nav-bg)", backdropFilter: "blur(12px)" }}
       className="sticky top-0 z-40"
     >
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -92,8 +94,29 @@ export function Nav() {
           })}
         </div>
 
-        {/* Wallet */}
+        {/* Wallet + theme toggle */}
         <div className="hidden md:flex items-center gap-3">
+          <button
+            onClick={toggle}
+            aria-label="Toggle dark mode"
+            style={{
+              width: "32px",
+              height: "32px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "8px",
+              border: "1px solid var(--border)",
+              background: "transparent",
+              color: "var(--muted)",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+              flexShrink: 0,
+            }}
+            className="hover:border-[var(--beacon-green)] hover:text-[var(--beacon-green)]"
+          >
+            {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
+          </button>
           {isConnected && address ? (
             <div className="flex items-center gap-2">
               <span
@@ -189,6 +212,29 @@ export function Nav() {
           })}
 
           <div style={{ borderTop: "1px solid var(--border)", marginTop: "8px", paddingTop: "12px" }}>
+            <div className="flex items-center justify-between" style={{ marginBottom: "10px" }}>
+              <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
+                {theme === "dark" ? "Dark mode" : "Light mode"}
+              </span>
+              <button
+                onClick={toggle}
+                aria-label="Toggle dark mode"
+                style={{
+                  width: "32px",
+                  height: "32px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: "8px",
+                  border: "1px solid var(--border)",
+                  background: "transparent",
+                  color: "var(--muted)",
+                  cursor: "pointer",
+                }}
+              >
+                {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
+              </button>
+            </div>
             {isConnected && address ? (
               <div className="flex items-center justify-between">
                 <span style={{ fontFamily: "monospace", fontSize: "0.8rem", color: "var(--muted)" }}>

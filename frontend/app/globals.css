@@ -12,6 +12,19 @@
   --border: #e4e4e7;
   --muted: #71717a;
   --radius: 12px;
+  --nav-bg: rgba(255, 255, 255, 0.92);
+}
+
+html.dark {
+  --foreground: #f4f4f5;
+  --background: #09090b;
+  --surface: #18181b;
+  --surface-2: #27272a;
+  --border: #3f3f46;
+  --muted: #a1a1aa;
+  --beacon-green-pale: rgba(55, 171, 47, 0.15);
+  --beacon-green-dim: rgba(55, 171, 47, 0.18);
+  --nav-bg: rgba(9, 9, 11, 0.92);
 }
 
 * {
@@ -98,8 +111,17 @@ body {
 .status-disputed { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
 .status-closed   { background: #f3f4f6; color: #374151; border: 1px solid #e5e7eb; }
 
+html.dark .status-pending  { background: rgba(254,243,199,0.12); color: #fde68a; border-color: rgba(253,230,138,0.25); }
+html.dark .status-verified { background: rgba(220,252,231,0.12); color: #86efac; border-color: rgba(187,247,208,0.25); }
+html.dark .status-disputed { background: rgba(254,226,226,0.12); color: #fca5a5; border-color: rgba(254,202,202,0.25); }
+html.dark .status-closed   { background: rgba(243,244,246,0.10); color: #a1a1aa; border-color: rgba(229,231,235,0.15); }
+
 .glass {
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+}
+
+html.dark .glass {
+  background: rgba(24, 24, 27, 0.85);
 }
