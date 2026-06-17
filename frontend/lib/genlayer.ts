@@ -65,24 +65,20 @@ function buildSelectiveProvider(
     async request({ method, params = [] }: { method: string; params?: unknown[] }) {
       if (method === "eth_sendTransaction") {
         if (isEmbedded) {
-          // genlayer-js sends type:"0x0" (hex string). Privy's server-side wallet API
-          // validates type as an integer literal via Zod, so "0x0" fails all branches.
-          // Privy has native support for GenLayer's Tempo format (type 118 with calls[]),
-          // so we rewrite the legacy tx into Tempo format before signing. Privy then routes
-          // through requireTempoClient() which has no timeout, avoiding the 10s viem abort.
-          const tx = params[0] as Record<string, unknown>;
-          const tempoTx = {
-            type: 118,
-            from: tx.from,
-            chainId: tx.chainId,
-            nonce: tx.nonce,
-            gas: tx.gas,
-            ...(tx.gasPrice ? { gasPrice: tx.gasPrice } : {}),
-            calls: [{ to: tx.to ?? "0x", data: tx.data ?? "0x", value: (tx.value as string) ?? "0x0" }],
+          // genlayer-js sends type:"0x0" (hex string) which fails Privy's Zod integer-literal
+          // validation. It also sends `gas` but Privy's toWalletApiUnsignedEthTransaction
+          // reads `gasLimit` (→ gas_limit). We call eth_signTransaction directly so we skip
+          // EmbeddedWalletProvider.handlePopulateTransaction, which uses a viem HTTP client
+          // with a 10s timeout that GenLayer's RPC regularly exceeds.
+          const { gas, type: _type, ...rest } = params[0] as Record<string, unknown>;
+          const legacyTx = {
+            ...rest,
+            type: 0,        // integer literal — passes Privy's Zod z.literal(0) check
+            gasLimit: gas,  // toWalletApiUnsignedEthTransaction maps gasLimit → gas_limit
           };
           const signature = await walletProvider.request({
             method: "eth_signTransaction",
-            params: [tempoTx],
+            params: [legacyTx],
           }) as string;
           const res = await fetch(RPC_URL, {
             method: "POST",
