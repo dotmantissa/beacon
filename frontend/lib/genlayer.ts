@@ -2,7 +2,6 @@ import { createClient, chains } from "genlayer-js";
 import type { GenLayerClient, Hash } from "genlayer-js/types";
 import { CalldataAddress, TransactionStatus, transactionsStatusNumberToName } from "genlayer-js/types";
 import { BEACON_CONTRACT_ADDRESS, RPC_URL, TX_POLL_INTERVAL, TX_POLL_RETRIES } from "@/lib/constants";
-import type { PrivySignerWallet } from "@/components/WalletProvider";
 
 export type TxReceipt = {
   status: "pending" | "finalized" | "failed";
@@ -60,27 +59,21 @@ function getReadClient(): GenLayerClient<never> {
 
 function buildSelectiveProvider(
   walletProvider: { request: (a: { method: string; params?: unknown[] }) => Promise<unknown> },
-  privyWallet?: PrivySignerWallet | null
+  isEmbedded: boolean
 ) {
   return {
     async request({ method, params = [] }: { method: string; params?: unknown[] }) {
       if (method === "eth_sendTransaction") {
-        if (privyWallet) {
-          // For embedded wallets: sign locally then send ourselves to avoid Privy's
-          // internal viem HTTP transport 10-second timeout on slow GenLayer RPC responses.
+        if (isEmbedded) {
+          // For embedded wallets: call eth_signTransaction on Privy's EmbeddedWalletProvider
+          // (bypasses its internal handlePopulateTransaction which uses a viem HTTP transport
+          // with a 10-second timeout that GenLayer's slow RPC regularly exceeds), then send
+          // the signed transaction to GenLayer ourselves via a plain fetch with no timeout.
           const tx = params[0] as Record<string, unknown>;
-          const txInput = {
-            ...(tx.from ? { from: tx.from } : {}),
-            ...(tx.to ? { to: tx.to } : {}),
-            ...(tx.data ? { data: tx.data } : {}),
-            ...(tx.value ? { value: tx.value } : {}),
-            ...(tx.gas ? { gasLimit: tx.gas } : {}),
-            ...(tx.nonce ? { nonce: tx.nonce } : {}),
-            ...(tx.gasPrice ? { gasPrice: tx.gasPrice } : {}),
-            ...(tx.chainId ? { chainId: parseInt(tx.chainId as string, 16) } : {}),
-            type: 0,
-          };
-          const { signature } = await privyWallet.signTransaction(txInput);
+          const signature = await walletProvider.request({
+            method: "eth_signTransaction",
+            params: [tx],
+          }) as string;
           const res = await fetch(RPC_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -120,13 +113,13 @@ function buildSelectiveProvider(
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function createWriteClient(walletAddress: string, walletProvider: any, privyWallet?: PrivySignerWallet | null): GenLayerClient<never> {
+function createWriteClient(walletAddress: string, walletProvider: any, isEmbedded: boolean): GenLayerClient<never> {
   return createClient({
     chain: chains.studionet,
     endpoint: RPC_URL,
     account: walletAddress as `0x${string}`,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    provider: buildSelectiveProvider(walletProvider, privyWallet) as any,
+    provider: buildSelectiveProvider(walletProvider, isEmbedded) as any,
   }) as unknown as GenLayerClient<never>;
 }
 
@@ -259,9 +252,9 @@ export async function submitIncident(
     evidence_urls: string[];
     severity: string;
   },
-  privyWallet?: PrivySignerWallet | null
+  isEmbedded: boolean
 ): Promise<TxReceipt> {
-  const client = createWriteClient(walletAddress, walletProvider, privyWallet);
+  const client = createWriteClient(walletAddress, walletProvider, isEmbedded);
   const txId = await client.writeContract({
     address: BEACON_CONTRACT_ADDRESS as `0x${string}`,
     functionName: "submit_incident",
@@ -286,9 +279,9 @@ export async function corroborateIncident(
   walletProvider: any,
   incidentId: string,
   statement: string,
-  privyWallet?: PrivySignerWallet | null
+  isEmbedded: boolean
 ): Promise<TxReceipt> {
-  const client = createWriteClient(walletAddress, walletProvider, privyWallet);
+  const client = createWriteClient(walletAddress, walletProvider, isEmbedded);
   const txId = await client.writeContract({
     address: BEACON_CONTRACT_ADDRESS as `0x${string}`,
     functionName: "corroborate_incident",
@@ -304,9 +297,9 @@ export async function markAuthorityReceived(
   walletProvider: any,
   incidentId: string,
   authorityReference: string,
-  privyWallet?: PrivySignerWallet | null
+  isEmbedded: boolean
 ): Promise<TxReceipt> {
-  const client = createWriteClient(walletAddress, walletProvider, privyWallet);
+  const client = createWriteClient(walletAddress, walletProvider, isEmbedded);
   const txId = await client.writeContract({
     address: BEACON_CONTRACT_ADDRESS as `0x${string}`,
     functionName: "mark_authority_received",

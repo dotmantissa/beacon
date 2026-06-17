@@ -56,7 +56,7 @@ function ConfidenceMeter({ confidence }: { confidence: number }) {
 
 export default function IncidentDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { address, walletProvider, isConnected, privyWallet } = useWallet();
+  const { address, walletProvider, isConnected, isEmbedded } = useWallet();
 
   const [incident, setIncident] = useState<Incident | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
@@ -101,7 +101,7 @@ export default function IncidentDetailPage() {
     setCorroborating(true);
     setCorroborateError("");
     try {
-      const receipt = await corroborateIncident(address, walletProvider, id, corroborateMsg || "I witnessed this incident.", privyWallet);
+      const receipt = await corroborateIncident(address, walletProvider, id, corroborateMsg || "I witnessed this incident.", isEmbedded);
       if (receipt.status === "failed") {
         setCorroborateError("Transaction failed. You may have already corroborated this, or submitted it yourself.");
       } else {
@@ -119,7 +119,7 @@ export default function IncidentDetailPage() {
     if (!address || !walletProvider || !authorityRef) return;
     setMarkingAuthority(true);
     try {
-      const receipt = await markAuthorityReceived(address, walletProvider, id, authorityRef, privyWallet);
+      const receipt = await markAuthorityReceived(address, walletProvider, id, authorityRef, isEmbedded);
       if (receipt.status !== "failed") setAuthorityDone(true);
     } catch { /* ignore */ }
     finally { setMarkingAuthority(false); }

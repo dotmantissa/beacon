@@ -13,14 +13,6 @@ import { CHAIN_ID } from "@/lib/constants";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type EthereumProvider = any;
 
-// Minimal interface for what we use from Privy's ConnectedWallet
-export type PrivySignerWallet = {
-  signTransaction: (
-    input: Record<string, unknown>,
-    options?: unknown
-  ) => Promise<{ signature: `0x${string}` }>;
-};
-
 type WalletState = {
   address: string | null;
   isConnected: boolean;
@@ -30,7 +22,6 @@ type WalletState = {
   error: string;
   walletProvider: EthereumProvider;
   isEmbedded: boolean;
-  privyWallet: PrivySignerWallet | null;
   connect: () => void;
   disconnect: () => Promise<void>;
   clearError: () => void;
@@ -163,7 +154,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         error,
         walletProvider,
         isEmbedded,
-        privyWallet: isEmbedded ? (activeWallet as unknown as PrivySignerWallet) : null,
         connect,
         disconnect,
         clearError,

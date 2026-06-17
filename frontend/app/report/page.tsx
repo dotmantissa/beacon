@@ -474,7 +474,7 @@ function StepDone({ incidentId }: { incidentId: string }) {
 }
 
 export default function ReportPage() {
-  const { address, walletProvider, privyWallet } = useWallet();
+  const { address, walletProvider, isEmbedded } = useWallet();
   const [step, setStep] = useState<Step>("details");
   const [form, setForm] = useState<FormData>(EMPTY);
   const [incidentId, setIncidentId] = useState("");
@@ -499,7 +499,7 @@ export default function ReportPage() {
         neighbourhood_id: form.neighbourhood_id,
         evidence_urls: form.evidence_urls,
         severity: form.severity,
-      }, privyWallet);
+      }, isEmbedded);
 
       if (receipt.status === "failed") {
         setErrorMsg("Transaction failed on-chain. Try again.");
