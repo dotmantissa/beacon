@@ -65,14 +65,24 @@ function buildSelectiveProvider(
     async request({ method, params = [] }: { method: string; params?: unknown[] }) {
       if (method === "eth_sendTransaction") {
         if (isEmbedded) {
-          // For embedded wallets: call eth_signTransaction on Privy's EmbeddedWalletProvider
-          // (bypasses its internal handlePopulateTransaction which uses a viem HTTP transport
-          // with a 10-second timeout that GenLayer's slow RPC regularly exceeds), then send
-          // the signed transaction to GenLayer ourselves via a plain fetch with no timeout.
+          // genlayer-js sends type:"0x0" (hex string). Privy's server-side wallet API
+          // validates type as an integer literal via Zod, so "0x0" fails all branches.
+          // Privy has native support for GenLayer's Tempo format (type 118 with calls[]),
+          // so we rewrite the legacy tx into Tempo format before signing. Privy then routes
+          // through requireTempoClient() which has no timeout, avoiding the 10s viem abort.
           const tx = params[0] as Record<string, unknown>;
+          const tempoTx = {
+            type: 118,
+            from: tx.from,
+            chainId: tx.chainId,
+            nonce: tx.nonce,
+            gas: tx.gas,
+            ...(tx.gasPrice ? { gasPrice: tx.gasPrice } : {}),
+            calls: [{ to: tx.to ?? "0x", data: tx.data ?? "0x", value: (tx.value as string) ?? "0x0" }],
+          };
           const signature = await walletProvider.request({
             method: "eth_signTransaction",
-            params: [tx],
+            params: [tempoTx],
           }) as string;
           const res = await fetch(RPC_URL, {
             method: "POST",
