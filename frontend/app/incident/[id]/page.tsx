@@ -100,16 +100,22 @@ export default function IncidentDetailPage() {
     if (!address || !walletProvider) return;
     setCorroborating(true);
     setCorroborateError("");
+    const prevCount = incident?.corroboration_count ?? 0;
     try {
       const receipt = await corroborateIncident(address, walletProvider, id, corroborateMsg || "I witnessed this incident.", isEmbedded);
       if (receipt.status === "failed") {
         setCorroborateError("Transaction failed. You may have already corroborated this, or submitted it yourself.");
       } else {
-        setCorroborateDone(true);
-        // Re-read fresh chain state and sync back to DB so the feed stays current
+        // Re-read fresh chain state to check if the contract actually accepted the corroboration
         const fresh = await readIncident(id);
         if (fresh) {
           setIncident(fresh);
+          if ((fresh.corroboration_count ?? 0) <= prevCount) {
+            // Tx was finalized but the contract rejected it (duplicate or own incident)
+            setCorroborateError("Already corroborated — or you submitted this incident.");
+            return;
+          }
+          setCorroborateDone(true);
           await fetch("/api/incidents", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -123,7 +129,8 @@ export default function IncidentDetailPage() {
             }),
           });
         } else if (incident) {
-          setIncident({ ...incident, corroboration_count: (incident.corroboration_count ?? 0) + 1 });
+          setIncident({ ...incident, corroboration_count: prevCount + 1 });
+          setCorroborateDone(true);
         }
       }
     } catch (err) {
