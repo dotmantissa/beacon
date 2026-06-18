@@ -106,7 +106,25 @@ export default function IncidentDetailPage() {
         setCorroborateError("Transaction failed. You may have already corroborated this, or submitted it yourself.");
       } else {
         setCorroborateDone(true);
-        if (incident) setIncident({ ...incident, corroboration_count: (incident.corroboration_count ?? 0) + 1 });
+        // Re-read fresh chain state and sync back to DB so the feed stays current
+        const fresh = await readIncident(id);
+        if (fresh) {
+          setIncident(fresh);
+          await fetch("/api/incidents", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: fresh.id,
+              chain_data: fresh,
+              tx_hash: receipt.hash,
+              submitter_address: fresh.submitter,
+              neighbourhood_id: fresh.neighbourhood_id,
+              evidence_urls: fresh.evidence_urls ?? [],
+            }),
+          });
+        } else if (incident) {
+          setIncident({ ...incident, corroboration_count: (incident.corroboration_count ?? 0) + 1 });
+        }
       }
     } catch (err) {
       setCorroborateError(String(err));

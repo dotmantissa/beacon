@@ -134,7 +134,7 @@ class BeaconIncident(gl.Contract):
         # Plausibility factors
         plausible = (
             description_length >= 50
-            and (has_evidence or corroboration_count >= 2 or keyword_hits >= 3)
+            and (has_evidence or corroboration_count >= 1 or keyword_hits >= 3)
         )
 
         # Status determination
