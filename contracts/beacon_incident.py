@@ -198,7 +198,7 @@ class BeaconIncident(gl.Contract):
         evidence_urls: str,  # JSON array of URL strings
         severity: str,       # "low" | "medium" | "high" | "critical"
     ) -> str:
-        submitter = str(gl.message.sender_account)
+        submitter = str(gl.message.sender_address)
         now = datetime.now(timezone.utc).isoformat()
         self.incident_count = u256(int(self.incident_count) + 1)
         incident_id = self._generate_incident_id(submitter, now)
@@ -250,13 +250,13 @@ class BeaconIncident(gl.Contract):
         self.validation_result[incident_id] = json.dumps(validation)
 
         # Update user's incident list
-        user_list_raw = self.user_incidents.get(gl.message.sender_account, "[]")
+        user_list_raw = self.user_incidents.get(gl.message.sender_address, "[]")
         try:
             user_list = json.loads(str(user_list_raw))
         except Exception:
             user_list = []
         user_list.append(incident_id)
-        self.user_incidents[gl.message.sender_account] = json.dumps(user_list)
+        self.user_incidents[gl.message.sender_address] = json.dumps(user_list)
 
         # Update neighbourhood index
         n_raw = self.neighbourhood_incidents.get(neighbourhood_id, "[]")
@@ -280,7 +280,7 @@ class BeaconIncident(gl.Contract):
         incident_id: str,
         statement: str,
     ) -> str:
-        corroborator = str(gl.message.sender_account)
+        corroborator = str(gl.message.sender_address)
 
         if not self.incidents.get(incident_id):
             return json.dumps({"error": "Incident not found"})
@@ -353,7 +353,7 @@ class BeaconIncident(gl.Contract):
         authority_reference: str,
     ) -> str:
         """Only the original submitter can mark an incident as received by authority."""
-        caller = str(gl.message.sender_account)
+        caller = str(gl.message.sender_address)
 
         if not self.incidents.get(incident_id):
             return json.dumps({"error": "Incident not found"})

@@ -508,8 +508,7 @@ export default function ReportPage() {
       }
 
       // Save to DB so it shows in the feed
-      const generatedId = `BCN-pending-${Date.now()}`;
-      const id = generatedId;
+      const id = receipt.incidentId ?? `BCN-pending-${Date.now()}`;
       await fetch("/api/incidents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

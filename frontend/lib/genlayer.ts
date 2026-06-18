@@ -7,6 +7,7 @@ export type TxReceipt = {
   status: "pending" | "finalized" | "failed";
   hash: string;
   result?: unknown;
+  incidentId?: string;
 };
 
 export type Incident = {
@@ -276,7 +277,12 @@ export async function submitIncident(
     ],
     value: BigInt(0),
   });
-  return pollGenLayerTx(txId as Hash);
+  const receipt = await pollGenLayerTx(txId as Hash);
+  if (receipt.status === "finalized") {
+    const userIncidents = await readUserIncidents(walletAddress);
+    receipt.incidentId = userIncidents[userIncidents.length - 1];
+  }
+  return receipt;
 }
 
 export async function corroborateIncident(

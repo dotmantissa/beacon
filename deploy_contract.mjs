@@ -8,8 +8,7 @@ import { transactionsStatusNumberToName } from "genlayer-js/types";
 import { ethers } from "ethers";
 
 const RPC_URL  = "https://studio.genlayer.com/api";
-const DEPLOYER = "0xBC1399c55538eC034d4Da550C03c34Ae0C357f53";
-const PRIV_KEY = "DEPLOYER_PRIVATE_KEY_REDACTED";
+const PRIV_KEY = process.env.DEPLOYER_PRIVATE_KEY;
 const POLL_MS  = 5000;
 const MAX_POLLS = 120;
 
@@ -42,7 +41,9 @@ async function pollStatus(hash) {
 }
 
 async function main() {
+  if (!PRIV_KEY) { console.error("Set DEPLOYER_PRIVATE_KEY env var before deploying."); process.exit(1); }
   const wallet = new ethers.Wallet(PRIV_KEY);
+  const DEPLOYER = wallet.address;
 
   const provider = {
     async request({ method, params = [] }) {
