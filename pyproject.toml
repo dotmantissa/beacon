@@ -30,3 +30,4 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 log_cli = true
 log_cli_level = "INFO"
+addopts = "--rpc-url=https://studio.genlayer.com/api --contracts-dir=contracts --default-wait-interval=6000 --default-wait-retries=30"
