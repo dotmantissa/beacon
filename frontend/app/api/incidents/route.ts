@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
+import { readIncident } from "@/lib/genlayer";
 
 // Ensure incidents table exists on first call
 async function ensureTable() {
@@ -78,6 +79,29 @@ export async function POST(req: NextRequest) {
       evidence_urls: string[];
     };
 
+    if (
+      !body.id
+      || !body.tx_hash
+      || !body.submitter_address
+      || !body.neighbourhood_id
+    ) {
+      return NextResponse.json({ error: "Invalid incident cache request" }, { status: 400 });
+    }
+
+    const onChain = await readIncident(body.id);
+    if (!onChain) {
+      return NextResponse.json(
+        { error: "Incident was not found on the configured GenLayer contract" },
+        { status: 400 }
+      );
+    }
+    if (
+      onChain.submitter.toLowerCase() !== body.submitter_address.toLowerCase()
+      || onChain.neighbourhood_id !== body.neighbourhood_id
+    ) {
+      return NextResponse.json({ error: "Incident cache data does not match chain" }, { status: 400 });
+    }
+
     await query(
       `INSERT INTO incidents (id, chain_data, tx_hash, submitter_address, neighbourhood_id, evidence_urls)
        VALUES ($1, $2, $3, $4, $5, $6)
@@ -87,11 +111,11 @@ export async function POST(req: NextRequest) {
          updated_at = NOW()`,
       [
         body.id,
-        JSON.stringify(body.chain_data),
+        JSON.stringify(onChain),
         body.tx_hash,
         body.submitter_address,
-        body.neighbourhood_id,
-        body.evidence_urls ?? [],
+        onChain.neighbourhood_id,
+        onChain.evidence_urls ?? [],
       ]
     );
 

@@ -1,11 +1,16 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Upload, X, Image as ImageIcon, Film } from "lucide-react";
+import { Upload, X, Image as ImageIcon } from "lucide-react";
+
+export interface EvidenceRef {
+  url: string;
+  sha256: string;
+}
 
 interface Props {
-  value: string[];
-  onChange: (urls: string[]) => void;
+  value: EvidenceRef[];
+  onChange: (evidence: EvidenceRef[]) => void;
   maxFiles?: number;
 }
 
@@ -22,9 +27,18 @@ export function EvidenceUploader({ value, onChange, maxFiles = 5 }: Props) {
     setUploading(true);
     setError("");
 
-    const newUrls: string[] = [];
-    for (const file of Array.from(files)) {
+    const newEvidence: EvidenceRef[] = [];
+    const remaining = Math.max(0, maxFiles - value.length);
+    for (const file of Array.from(files).slice(0, remaining)) {
       try {
+        if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+          setError("Only JPG, PNG, and WebP evidence is supported");
+          continue;
+        }
+        if (file.size > 750_000) {
+          setError("Each evidence image must be 750KB or smaller");
+          continue;
+        }
         // Convert to base64
         const base64 = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
@@ -38,24 +52,35 @@ export function EvidenceUploader({ value, onChange, maxFiles = 5 }: Props) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ file: base64, fileName: file.name }),
         });
-        const data = await res.json() as { url?: string; error?: string };
-        if (data.url) newUrls.push(data.url);
-        else setError(data.error ?? "Upload failed");
+        let data: {
+          url?: string;
+          sha256?: string;
+          error?: string;
+        };
+        try {
+          data = await res.json() as {
+            url?: string;
+            sha256?: string;
+            error?: string;
+          };
+        } catch {
+          data = {};
+        }
+        if (data.url && data.sha256) {
+          newEvidence.push({ url: data.url, sha256: data.sha256 });
+        }
+        else setError(data.error ?? `Upload failed (${res.status})`);
       } catch {
         setError("Upload failed. Try again.");
       }
     }
 
-    onChange([...value, ...newUrls]);
+    onChange([...value, ...newEvidence]);
     setUploading(false);
   }
 
   function remove(url: string) {
-    onChange(value.filter(u => u !== url));
-  }
-
-  function isVideo(url: string) {
-    return /\.(mp4|mov|avi|webm)/i.test(url) || url.startsWith("data:video");
+    onChange(value.filter(item => item.url !== url));
   }
 
   return (
@@ -78,10 +103,10 @@ export function EvidenceUploader({ value, onChange, maxFiles = 5 }: Props) {
       >
         <Upload size={20} style={{ margin: "0 auto 8px", color: "var(--muted)" }} />
         <p style={{ fontSize: "0.875rem", color: "var(--muted)" }}>
-          {uploading ? "Uploading..." : "Drop photos or video here, or click to browse"}
+          {uploading ? "Uploading..." : "Drop photos here, or click to browse"}
         </p>
         <p style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "4px" }}>
-          JPG, PNG, MP4 up to 20MB each
+          JPG, PNG, or WebP up to 750KB each
         </p>
       </div>
       <input
@@ -89,7 +114,7 @@ export function EvidenceUploader({ value, onChange, maxFiles = 5 }: Props) {
         type="file"
         className="sr-only"
         multiple
-        accept="image/*,video/*"
+        accept="image/jpeg,image/png,image/webp"
         onChange={e => e.target.files && handleFiles(e.target.files)}
       />
 
@@ -100,9 +125,9 @@ export function EvidenceUploader({ value, onChange, maxFiles = 5 }: Props) {
       {/* Previews */}
       {value.length > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "12px" }}>
-          {value.map((url, i) => (
+          {value.map((item, i) => (
             <div
-              key={i}
+              key={item.url}
               style={{
                 position: "relative",
                 width: "80px",
@@ -114,13 +139,9 @@ export function EvidenceUploader({ value, onChange, maxFiles = 5 }: Props) {
                 flexShrink: 0,
               }}
             >
-              {isVideo(url) ? (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
-                  <Film size={24} style={{ color: "var(--muted)" }} />
-                </div>
-              ) : url.startsWith("data:image") || url.startsWith("http") ? (
+              {item.url.startsWith("http") ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <img src={item.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               ) : (
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
                   <ImageIcon size={24} style={{ color: "var(--muted)" }} />
@@ -128,7 +149,8 @@ export function EvidenceUploader({ value, onChange, maxFiles = 5 }: Props) {
               )}
               <button
                 type="button"
-                onClick={() => remove(url)}
+                onClick={() => remove(item.url)}
+                aria-label={`Remove evidence ${i + 1}`}
                 style={{
                   position: "absolute",
                   top: "3px",

@@ -50,7 +50,7 @@ export default function MapPage() {
             Neighbourhood map
           </h1>
           <p style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
-            Every dot is a verified report. Clusters tell you where the problem actually is.
+            Dots show on-chain reports. Their badges distinguish pending, verified, disputed, and closed incidents.
           </p>
         </div>
 

@@ -14,8 +14,6 @@ from __future__ import annotations
 
 import base64
 import json
-import urllib.error
-import urllib.request
 from pathlib import Path
 
 import pytest
@@ -51,7 +49,10 @@ skip_no_network = pytest.mark.skipif(
 )
 
 try:
-    from gltest import get_contract_factory, create_account  # type: ignore[attr-defined]
+    from gltest import (  # type: ignore[attr-defined]
+        create_account,
+        get_contract_factory,
+    )
     _GLTEST_OK = True
 except ImportError:
     _GLTEST_OK = False

@@ -62,8 +62,8 @@ function HeroSection() {
           }}
           className="animate-fade-up"
         >
-          Submit an incident. The AI cross-checks it against public records and corroborating reports.
-          Verified. On-chain. Impossible to quietly ignore.
+          Submit an incident. GenLayer validators inspect its committed evidence and public records.
+          The evidence and consensus status are recorded on-chain.
         </p>
 
         <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }} className="animate-fade-up">
@@ -114,8 +114,8 @@ function HeroSection() {
 
 function HowItWorksSection() {
   const steps = [
-    { icon: Plus, title: "You submit", body: "Describe what happened. Add photos or video, your location. Takes two minutes." },
-    { icon: Zap, title: "The AI verifies", body: "GenLayer's AI cross-references your report against public council records and corroborating submissions." },
+    { icon: Plus, title: "You submit", body: "Describe what happened. Add committed photos and a precise location." },
+    { icon: Zap, title: "Consensus assesses", body: "GenLayer validators independently inspect the submitted evidence and relevant public records." },
     { icon: Shield, title: "It goes on the record", body: "Verified incidents live on-chain. Immutable. The authority gets a structured report they cannot claim not to have received." },
     { icon: Database, title: "Patterns surface", body: "Recurring incidents in the same area automatically cluster. Neighbourhood-wide trends become undeniable." },
   ];

@@ -95,9 +95,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!authenticated || !activeWallet) {
-      setWalletProvider(null);
-      setWrongNetwork(false);
-      return;
+      const timeout = window.setTimeout(() => {
+        setWalletProvider(null);
+        setWrongNetwork(false);
+      }, 0);
+      return () => window.clearTimeout(timeout);
     }
 
     let cancelled = false;

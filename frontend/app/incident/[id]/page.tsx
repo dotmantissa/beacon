@@ -56,7 +56,7 @@ function ConfidenceMeter({ confidence }: { confidence: number }) {
 
 export default function IncidentDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { address, walletProvider, isConnected, isEmbedded } = useWallet();
+  const { address, walletProvider, isEmbedded } = useWallet();
 
   const [incident, setIncident] = useState<Incident | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
@@ -68,6 +68,7 @@ export default function IncidentDetailPage() {
   const [authorityRef, setAuthorityRef] = useState("");
   const [markingAuthority, setMarkingAuthority] = useState(false);
   const [authorityDone, setAuthorityDone] = useState(false);
+  const [authorityError, setAuthorityError] = useState("");
 
   useEffect(() => {
     if (!id) return;
@@ -105,11 +106,15 @@ export default function IncidentDetailPage() {
       const receipt = await corroborateIncident(address, walletProvider, id, corroborateMsg || "I witnessed this incident.", isEmbedded);
       if (receipt.status === "failed") {
         setCorroborateError("Transaction failed. You may have already corroborated this, or submitted it yourself.");
+      } else if (receipt.status !== "finalized") {
+        setCorroborateError("The corroboration transaction is still pending.");
       } else {
         // Re-read fresh chain state to check if the contract actually accepted the corroboration
         const fresh = await readIncident(id);
         if (fresh) {
           setIncident(fresh);
+          const freshValidation = await readIncidentValidation(id);
+          if (freshValidation) setValidation(freshValidation);
           if ((fresh.corroboration_count ?? 0) <= prevCount) {
             // Tx was finalized but the contract rejected it (duplicate or own incident)
             setCorroborateError("Already corroborated — or you submitted this incident.");
@@ -128,9 +133,10 @@ export default function IncidentDetailPage() {
               evidence_urls: fresh.evidence_urls ?? [],
             }),
           });
-        } else if (incident) {
-          setIncident({ ...incident, corroboration_count: prevCount + 1 });
-          setCorroborateDone(true);
+        } else {
+          setCorroborateError(
+            "The transaction finalized, but the updated incident could not be read from chain."
+          );
         }
       }
     } catch (err) {
@@ -143,10 +149,43 @@ export default function IncidentDetailPage() {
   async function handleMarkAuthority() {
     if (!address || !walletProvider || !authorityRef) return;
     setMarkingAuthority(true);
+    setAuthorityError("");
     try {
       const receipt = await markAuthorityReceived(address, walletProvider, id, authorityRef, isEmbedded);
-      if (receipt.status !== "failed") setAuthorityDone(true);
-    } catch { /* ignore */ }
+      if (receipt.status !== "finalized") {
+        setAuthorityError(
+          receipt.status === "failed"
+            ? "The authority update failed on-chain."
+            : "The authority update is still pending."
+        );
+        return;
+      }
+      const fresh = await readIncident(id);
+      if (!fresh || fresh.status !== "CLOSED") {
+        setAuthorityError(
+          "The public authority page could not be authenticated for this incident."
+        );
+        return;
+      }
+      setIncident(fresh);
+      const freshValidation = await readIncidentValidation(id);
+      if (freshValidation) setValidation(freshValidation);
+      setAuthorityDone(true);
+      await fetch("/api/incidents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: fresh.id,
+          chain_data: fresh,
+          tx_hash: receipt.hash,
+          submitter_address: fresh.submitter,
+          neighbourhood_id: fresh.neighbourhood_id,
+          evidence_urls: fresh.evidence_urls ?? [],
+        }),
+      });
+    } catch (err) {
+      setAuthorityError(String(err));
+    }
     finally { setMarkingAuthority(false); }
   }
 
@@ -250,9 +289,11 @@ export default function IncidentDetailPage() {
             <p style={{ fontSize: "0.875rem", lineHeight: 1.6, marginTop: "14px", color: "var(--muted)" }}>
               {validation.reasoning}
             </p>
-            {validation.council_data_consulted && (
+            {validation.public_records_available && (
               <p style={{ fontSize: "0.78rem", color: "var(--beacon-green)", marginTop: "10px", fontWeight: 500 }}>
-                Public records were consulted during validation.
+                {validation.public_records_support_incident
+                  ? "Consensus found incident-specific support in the public record snapshot."
+                  : `${validation.public_record_count} nearby public record${validation.public_record_count === 1 ? "" : "s"} inspected.`}
               </p>
             )}
           </div>
@@ -283,7 +324,7 @@ export default function IncidentDetailPage() {
             <div style={{ background: "var(--surface)", borderRadius: "14px", padding: "24px", border: "1px solid var(--border)", marginBottom: "16px" }}>
               <h3 style={{ fontWeight: 700, fontSize: "0.95rem", marginBottom: "8px" }}>Did you see this too?</h3>
               <p style={{ fontSize: "0.875rem", color: "var(--muted)", marginBottom: "16px" }}>
-                Corroborating reports raise the verification confidence and make this harder to ignore.
+                Your statement is recorded and reassessed, but it cannot verify the incident without authenticated evidence.
               </p>
               {corroborateDone ? (
                 <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--beacon-green)", fontWeight: 600 }}>
@@ -341,30 +382,37 @@ export default function IncidentDetailPage() {
             <div style={{ background: "var(--surface)", borderRadius: "14px", padding: "24px", border: "1px solid var(--border)" }}>
               <h3 style={{ fontWeight: 700, fontSize: "0.95rem", marginBottom: "8px" }}>Mark as received by authority</h3>
               <p style={{ fontSize: "0.875rem", color: "var(--muted)", marginBottom: "16px" }}>
-                If a council officer or police reference number has been issued, record it here permanently.
+                Add the public government or police page that acknowledges this incident.
               </p>
               {authorityDone ? (
                 <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--beacon-green)", fontWeight: 600 }}>
                   <CheckCircle size={18} /> Reference recorded on-chain.
                 </div>
               ) : (
-                <div style={{ display: "flex", gap: "10px" }}>
-                  <input
-                    placeholder="e.g. Police ref: CRM-2024-8821"
-                    value={authorityRef}
-                    onChange={e => setAuthorityRef(e.target.value)}
-                    style={{ flex: 1, padding: "10px 12px", borderRadius: "8px", border: "1.5px solid var(--border)", fontSize: "0.875rem", fontFamily: "inherit", outline: "none" }}
-                    onFocus={e => (e.target.style.borderColor = "var(--beacon-green)")}
-                    onBlur={e => (e.target.style.borderColor = "var(--border)")}
-                  />
-                  <button
-                    onClick={handleMarkAuthority}
-                    disabled={!authorityRef || markingAuthority}
-                    style={{ padding: "10px 16px", background: "var(--beacon-green)", color: "#fff", borderRadius: "8px", border: "none", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
-                  >
-                    {markingAuthority ? "Saving..." : "Record it"}
-                  </button>
-                </div>
+                <>
+                  <div style={{ display: "flex", gap: "10px" }}>
+                    <input
+                      placeholder="https://www.police.uk/.../incident-receipt"
+                      value={authorityRef}
+                      onChange={e => setAuthorityRef(e.target.value)}
+                      style={{ flex: 1, padding: "10px 12px", borderRadius: "8px", border: "1.5px solid var(--border)", fontSize: "0.875rem", fontFamily: "inherit", outline: "none" }}
+                      onFocus={e => (e.target.style.borderColor = "var(--beacon-green)")}
+                      onBlur={e => (e.target.style.borderColor = "var(--border)")}
+                    />
+                    <button
+                      onClick={handleMarkAuthority}
+                      disabled={!authorityRef || markingAuthority}
+                      style={{ padding: "10px 16px", background: "var(--beacon-green)", color: "#fff", borderRadius: "8px", border: "none", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
+                    >
+                      {markingAuthority ? "Checking..." : "Verify source"}
+                    </button>
+                  </div>
+                  {authorityError && (
+                    <p style={{ color: "#ef4444", fontSize: "0.8rem", marginTop: "10px" }}>
+                      {authorityError}
+                    </p>
+                  )}
+                </>
               )}
             </div>
           )}

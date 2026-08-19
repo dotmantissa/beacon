@@ -6,7 +6,7 @@ Beacon is for that.
 
 ---
 
-You submit what happened. Photos, video, a precise location, your own account in your own words. The AI cross-references it against public council and police records, checks for corroboration from other residents, and assigns a verification confidence score. If it checks out, it goes on-chain. Immutable. Timestamped. Impossible to claim was never reported.
+You submit what happened with a precise location, your own account in your own words, and optional committed photos. GenLayer validators independently fetch the submitted evidence, verify its SHA-256 commitment, and assess it alongside relevant public police records. Descriptions and corroboration statements are context, not proof: an incident only becomes `VERIFIED` when consensus finds incident-specific support in both the authenticated evidence and public-record snapshot.
 
 The local authority gets a structured incident record. The neighbourhood gets a public, searchable history. Patterns in the data surface automatically. And the burden of proof shifts where it belongs.
 
@@ -24,7 +24,7 @@ npm run dev
 How to deploy the contract:
 
 ```
-node deploy_contract.mjs
+DEPLOYER_PRIVATE_KEY=... node deploy_contract.mjs
 # copy the address into frontend/.env.local as NEXT_PUBLIC_BEACON_CONTRACT_ADDRESS
 ```
 

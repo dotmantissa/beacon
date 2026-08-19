@@ -17,7 +17,7 @@ Covers:
   Submit
     - returns valid JSON with incident_id, status, confidence, reasoning
     - incident_id follows the BCN-N-HASH format
-    - status is PENDING or VERIFIED
+    - reports without committed evidence remain PENDING
     - confidence is an integer 0-100
     - reasoning is a non-empty string
 
@@ -32,9 +32,8 @@ Covers:
     - get_total_incidents increments with each submission
     - get_corroboration_count starts at zero
 
-  Confidence and AI behaviour
-    - short description yields low confidence
-    - detailed description with keywords yields higher confidence
+  Evidence-backed AI behaviour
+    - description length and keywords cannot create VERIFIED
     - confidence is within valid range regardless of AI outcome
 
   Corroboration
@@ -45,7 +44,7 @@ Covers:
     - corroborating an unknown incident returns an error
 
   Authority receipt
-    - submitter can mark authority received, status becomes CLOSED
+    - arbitrary text references cannot close an incident
     - non-submitter cannot mark authority received
     - marking unknown incident returns an error
 """
@@ -54,18 +53,16 @@ from __future__ import annotations
 import json
 import re
 
-import pytest
 from genlayer_py.types import CalldataAddress
 
 from .conftest import (
-    THEFT_INCIDENT,
     DAMAGE_INCIDENT,
     SHORT_INCIDENT,
+    THEFT_INCIDENT,
     _parse,
     _submit_args,
     skip_no_network,
 )
-
 
 # ================================================================== #
 # Helpers                                                              #
@@ -125,7 +122,7 @@ def test_submit_incident_id_format(contract) -> None:
 @skip_no_network
 def test_submit_has_valid_status(contract) -> None:
     result = _submit(contract, THEFT_INCIDENT)
-    assert result.get("status") in ("PENDING", "VERIFIED")
+    assert result.get("status") == "PENDING"
 
 
 @skip_no_network
@@ -289,18 +286,10 @@ def test_two_submissions_produce_different_ids(contract) -> None:
 # ================================================================== #
 
 @skip_no_network
-def test_short_description_gives_low_confidence(contract) -> None:
-    result = _submit(contract, SHORT_INCIDENT)
-    assert int(result["confidence"]) <= 40, (
-        f"Short vague description should yield low confidence, got {result['confidence']}"
-    )
-
-
-@skip_no_network
-def test_short_description_stays_pending(contract) -> None:
+def test_short_description_without_evidence_stays_pending(contract) -> None:
     result = _submit(contract, SHORT_INCIDENT)
     assert result["status"] == "PENDING", (
-        f"Short description should result in PENDING status, got {result['status']}"
+        f"No-evidence report should remain PENDING, got {result['status']}"
     )
 
 
@@ -309,6 +298,9 @@ def test_detailed_incident_confidence_in_range(contract) -> None:
     result = _submit(contract, THEFT_INCIDENT)
     confidence = int(result["confidence"])
     assert 0 <= confidence <= 100
+    assert result["status"] == "PENDING", (
+        "Detailed prose and keywords must not create VERIFIED without evidence"
+    )
 
 
 # ================================================================== #
@@ -376,28 +368,17 @@ def test_corroborate_unknown_incident_returns_error(contract, account2) -> None:
 
 
 @skip_no_network
-def test_corroboration_improves_confidence_on_plausible_incident(contract, account2) -> None:
-    """
-    A detailed, keyword-rich incident that is initially PENDING should move
-    toward higher confidence after one corroboration.
-    Skipped if the AI verifies it outright on submission (already at ceiling).
-    """
+def test_corroboration_alone_does_not_verify(contract, account2) -> None:
     result = _submit(contract, THEFT_INCIDENT)
     incident_id = result["incident_id"]
-    before_confidence = int(result["confidence"])
 
-    _corroborate(contract.connect(account2), incident_id, "I witnessed this incident.")
-
-    after_val = _get_validation(contract, incident_id)
-    after_confidence = int(after_val["confidence"])
-
-    if before_confidence >= 75:
-        pytest.skip("Incident was already highly confident before corroboration")
-
-    assert after_confidence >= before_confidence, (
-        f"Confidence should not decrease after corroboration "
-        f"({before_confidence} -> {after_confidence})"
+    corr_result = _corroborate(
+        contract.connect(account2),
+        incident_id,
+        "I witnessed this incident.",
     )
+
+    assert corr_result["new_status"] == "PENDING"
 
 
 # ================================================================== #
@@ -405,34 +386,33 @@ def test_corroboration_improves_confidence_on_plausible_incident(contract, accou
 # ================================================================== #
 
 @skip_no_network
-def test_mark_authority_received_by_submitter(contract, account) -> None:
+def test_plain_authority_reference_is_rejected(contract, account) -> None:
     result = _submit(contract, THEFT_INCIDENT)
     incident_id = result["incident_id"]
     receipt = _mark_authority(
         contract.connect(account), incident_id, "Police ref: CRM-2024-TEST-001"
     )
-    assert "error" not in receipt, f"mark_authority_received failed: {receipt}"
-    assert receipt.get("incident_id") == incident_id
+    assert "error" in receipt
 
 
 @skip_no_network
-def test_mark_authority_received_sets_closed_status(contract, account) -> None:
+def test_rejected_authority_reference_does_not_close(contract, account) -> None:
     result = _submit(contract, THEFT_INCIDENT)
     incident_id = result["incident_id"]
     _mark_authority(contract.connect(account), incident_id, "Council ref: BCN-REF-001")
     stored = _get_incident(contract, incident_id)
-    assert stored["status"] == "CLOSED"
-    assert int(stored["status_code"]) == 3
+    assert stored["status"] == "PENDING"
+    assert int(stored["status_code"]) == 0
 
 
 @skip_no_network
-def test_mark_authority_received_stores_reference(contract, account) -> None:
+def test_rejected_authority_reference_is_not_stored(contract, account) -> None:
     result = _submit(contract, THEFT_INCIDENT)
     incident_id = result["incident_id"]
     ref = "Police ref: CRM-2024-TEST-999"
     _mark_authority(contract.connect(account), incident_id, ref)
     stored = _get_incident(contract, incident_id)
-    assert stored.get("authority_reference") == ref
+    assert "authority_reference" not in stored
 
 
 @skip_no_network

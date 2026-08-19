@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { MapPin, AlertTriangle, CheckCircle, Loader2, ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { WalletGate } from "@/components/WalletGate";
-import { EvidenceUploader } from "@/components/EvidenceUploader";
+import {
+  EvidenceUploader,
+  type EvidenceRef,
+} from "@/components/EvidenceUploader";
 import { useWallet } from "@/components/WalletProvider";
 import { submitIncident } from "@/lib/genlayer";
 import { INCIDENT_TYPES, SEVERITY_LEVELS } from "@/lib/constants";
@@ -21,7 +23,7 @@ interface FormData {
   location_lng: string;
   location_label: string;
   neighbourhood_id: string;
-  evidence_urls: string[];
+  evidence_urls: EvidenceRef[];
 }
 
 const EMPTY: FormData = {
@@ -189,7 +191,16 @@ function StepLocation({ data, onChange, onNext, onBack }: {
 }) {
   const [detecting, setDetecting] = useState(false);
   const [geoError, setGeoError] = useState("");
-  const canNext = data.location_label.length > 0;
+  const lat = Number(data.location_lat);
+  const lng = Number(data.location_lng);
+  const validCoordinates =
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    lat >= -90 &&
+    lat <= 90 &&
+    lng >= -180 &&
+    lng <= 180;
+  const canNext = data.location_label.length > 0 && validCoordinates;
 
   function detectLocation() {
     if (!navigator.geolocation) { setGeoError("Geolocation not supported in this browser"); return; }
@@ -259,7 +270,7 @@ function StepLocation({ data, onChange, onNext, onBack }: {
 
       <div style={{ display: "flex", gap: "10px", marginBottom: "16px" }}>
         <input
-          placeholder="Latitude (optional)"
+          placeholder="Latitude"
           value={data.location_lat}
           onChange={e => onChange({ location_lat: e.target.value })}
           style={{
@@ -275,7 +286,7 @@ function StepLocation({ data, onChange, onNext, onBack }: {
           onBlur={e => (e.target.style.borderColor = "var(--border)")}
         />
         <input
-          placeholder="Longitude (optional)"
+          placeholder="Longitude"
           value={data.location_lng}
           onChange={e => onChange({ location_lng: e.target.value })}
           style={{
@@ -366,7 +377,7 @@ function StepEvidence({ data, onChange, onNext, onBack }: {
     <div className="animate-fade-up">
       <h2 style={{ fontWeight: 700, fontSize: "1.2rem", marginBottom: "6px" }}>Got any evidence?</h2>
       <p style={{ color: "var(--muted)", fontSize: "0.875rem", marginBottom: "28px" }}>
-        Photos and video dramatically increase verification confidence. Totally optional, but worth it.
+        A committed photo gives validators material they can independently inspect. Evidence is optional, but prose alone cannot be verified.
       </p>
 
       <EvidenceUploader
@@ -444,7 +455,7 @@ function Row({ label, value, last }: { label: string; value: string; last?: bool
   );
 }
 
-function StepDone({ incidentId }: { incidentId: string }) {
+function StepDone({ incidentId, status }: { incidentId: string; status: string }) {
   return (
     <div className="animate-fade-up" style={{ textAlign: "center", padding: "20px 0" }}>
       <div style={{ margin: "0 auto 20px", width: "60px", height: "60px", borderRadius: "50%", background: "var(--beacon-green-pale)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -452,8 +463,8 @@ function StepDone({ incidentId }: { incidentId: string }) {
       </div>
       <h2 style={{ fontWeight: 700, fontSize: "1.3rem", marginBottom: "8px" }}>It&apos;s on the record.</h2>
       <p style={{ color: "var(--muted)", fontSize: "0.9rem", lineHeight: 1.6, marginBottom: "28px" }}>
-        Your incident has been submitted and verified on-chain. The AI ran its check.
-        Now it cannot be quietly swept under the rug.
+        Your incident has been submitted on-chain. Its current consensus status is{" "}
+        <strong>{status}</strong>. The evidence and validation result are recorded with it.
       </p>
       <div style={{ display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}>
         <Link
@@ -478,8 +489,8 @@ export default function ReportPage() {
   const [step, setStep] = useState<Step>("details");
   const [form, setForm] = useState<FormData>(EMPTY);
   const [incidentId, setIncidentId] = useState("");
+  const [incidentStatus, setIncidentStatus] = useState("PENDING");
   const [errorMsg, setErrorMsg] = useState("");
-  const router = useRouter();
 
   function update(partial: Partial<FormData>) {
     setForm(f => ({ ...f, ...partial }));
@@ -506,36 +517,36 @@ export default function ReportPage() {
         setStep("error");
         return;
       }
+      if (receipt.status !== "finalized") {
+        setErrorMsg("The transaction is still pending. No local incident was created.");
+        setStep("error");
+        return;
+      }
 
-      // Save to DB so it shows in the feed
-      const id = receipt.incidentId ?? `BCN-pending-${Date.now()}`;
+      // Cache only the finalized chain state. A timeout or failed chain read
+      // must never create a synthetic incident that can diverge from GenLayer.
+      const chainIncident = receipt.incident;
+      if (!receipt.incidentId || !chainIncident) {
+        setErrorMsg("The transaction finalized, but its incident state could not be read from chain.");
+        setStep("error");
+        return;
+      }
+      const id = receipt.incidentId;
       await fetch("/api/incidents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id,
-          chain_data: {
-            id,
-            type: form.incident_type,
-            description: form.description,
-            location: { lat: form.location_lat || "0", lng: form.location_lng || "0", label: form.location_label },
-            neighbourhood_id: form.neighbourhood_id,
-            evidence_urls: form.evidence_urls,
-            severity: form.severity,
-            submitter: address,
-            submitted_at: new Date().toISOString(),
-            status: "PENDING",
-            status_code: 0,
-            corroboration_count: 0,
-          },
+          chain_data: chainIncident,
           tx_hash: receipt.hash,
           submitter_address: address,
-          neighbourhood_id: form.neighbourhood_id,
-          evidence_urls: form.evidence_urls,
+          neighbourhood_id: chainIncident.neighbourhood_id,
+          evidence_urls: chainIncident.evidence_urls ?? [],
         }),
       });
 
       setIncidentId(id);
+      setIncidentStatus(chainIncident.status);
       setStep("done");
     } catch (err) {
       setErrorMsg(String(err));
@@ -591,7 +602,12 @@ export default function ReportPage() {
               </p>
             </div>
           )}
-          {step === "done" && <StepDone incidentId={incidentId} />}
+          {step === "done" && (
+            <StepDone
+              incidentId={incidentId}
+              status={incidentStatus}
+            />
+          )}
           {step === "error" && (
             <div style={{ textAlign: "center", padding: "20px 0" }}>
               <AlertTriangle size={36} style={{ margin: "0 auto 16px", color: "#ef4444" }} />

@@ -8,6 +8,8 @@ export type TxReceipt = {
   hash: string;
   result?: unknown;
   incidentId?: string;
+  incident?: Incident;
+  validation?: ValidationResult;
 };
 
 export type Incident = {
@@ -25,15 +27,28 @@ export type Incident = {
   corroboration_count: number;
   authority_reference?: string;
   authority_received_at?: string;
+  evidence_hashes?: string[];
+  public_records_fingerprint?: string;
+  authority_source_sha256?: string;
 };
 
 export type ValidationResult = {
   status: string;
   confidence: number;
   reasoning: string;
-  evidence_score: number;
-  keyword_hits: number;
-  council_data_consulted: boolean;
+  evidence_hashes: string[];
+  evidence_count: number;
+  evidence_fetches_ok: boolean;
+  evidence_commitments_verified: boolean;
+  evidence_analyzable: boolean;
+  evidence_supports_incident: boolean;
+  evidence_assessment: string;
+  public_records_source: string;
+  public_records_available: boolean;
+  public_records_incident_period_available: boolean;
+  public_records_support_incident: boolean;
+  public_records_fingerprint: string;
+  public_record_count: number;
   validated_at: string;
 };
 
@@ -71,7 +86,10 @@ function buildSelectiveProvider(
           // reads `gasLimit` (→ gas_limit). We call eth_signTransaction directly so we skip
           // EmbeddedWalletProvider.handlePopulateTransaction, which uses a viem HTTP client
           // with a 10s timeout that GenLayer's RPC regularly exceeds.
-          const { gas, type: _type, ...rest } = params[0] as Record<string, unknown>;
+          const rest = { ...(params[0] as Record<string, unknown>) };
+          const gas = rest.gas;
+          delete rest.gas;
+          delete rest.type;
           const legacyTx = {
             ...rest,
             type: 0,        // integer literal — passes Privy's Zod z.literal(0) check
@@ -256,7 +274,7 @@ export async function submitIncident(
     location_lng: string;
     location_label: string;
     neighbourhood_id: string;
-    evidence_urls: string[];
+    evidence_urls: Array<{ url: string; sha256: string }>;
     severity: string;
   },
   isEmbedded: boolean
@@ -272,7 +290,7 @@ export async function submitIncident(
       params.location_lng,
       params.location_label,
       params.neighbourhood_id,
-      JSON.stringify(params.evidence_urls.filter(u => !u.startsWith("data:"))),
+      JSON.stringify(params.evidence_urls),
       params.severity,
     ],
     value: BigInt(0),
@@ -281,6 +299,10 @@ export async function submitIncident(
   if (receipt.status === "finalized") {
     const userIncidents = await readUserIncidents(walletAddress);
     receipt.incidentId = userIncidents[userIncidents.length - 1];
+    if (receipt.incidentId) {
+      receipt.incident = await readIncident(receipt.incidentId) ?? undefined;
+      receipt.validation = await readIncidentValidation(receipt.incidentId) ?? undefined;
+    }
   }
   return receipt;
 }

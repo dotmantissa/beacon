@@ -14,7 +14,7 @@ function shortAddr(addr: string) {
 }
 
 export default function ProfilePage() {
-  const { address, isConnected } = useWallet();
+  const { address } = useWallet();
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -36,7 +36,6 @@ export default function ProfilePage() {
 
   const verified = incidents.filter(i => i.status === "VERIFIED").length;
   const pending = incidents.filter(i => i.status === "PENDING").length;
-  const closed = incidents.filter(i => i.status === "CLOSED").length;
 
   return (
     <div style={{ minHeight: "100vh" }}>
